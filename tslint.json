@@ -1,0 +1,27 @@
+{
+  "extends": [
+    "tslint:recommended",
+    "tslint-eslint-rules",
+    "tslint-react",
+    "tslint-config-prettier"
+  ],
+  "rules": {
+    "array-type": [true, "array"],
+    "curly": false,
+    "eofline": true,
+    "interface-name": false,
+    "max-classes-per-file": false,
+    "no-console": ["error", {"allow": ["warn", "error"]}],
+    "no-empty": false,
+    "no-empty-interface": false,
+    "no-unused-variable": [true, {"ignore-pattern": "^_"}],
+    "object-literal-sort-keys": false,
+    "variable-name": [
+      true,
+      "ban-keywords",
+      "check-format",
+      "allow-leading-underscore",
+      "allow-pascal-case"
+    ]
+  }
+}
