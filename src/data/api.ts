@@ -1,10 +1,42 @@
-import * as qs from 'qs'
-
 /**
- * This attempts to normalize the crazy keys of
- * the (wonderfully free) Alpha Vantage API:
+ * This file attempts to normalize the crazy json keys
+ * of the (free-but-csv-biased) Alpha Vantage API
  * https://www.alphavantage.co/documentation/
  */
+
+import * as qs from 'qs'
+
+interface Request {
+  apikey: string
+  symbol: string
+  function: TimeFunction
+  interval?: Interval // only if Intraday
+  outputsize: OutputSize
+}
+
+interface Response {
+  timeseries: Datum[]
+  metadata: Metadata
+}
+
+interface Datum {
+  time: number // ms
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  adjustedclose?: number // only if Adjusted
+  dividendamount?: number // only if Adjusted
+  splitcoefficient?: number // only if Adjusted Daily
+}
+
+interface Metadata {
+  information: string
+  symbol: string
+  lastrefreshed: string
+  timezone: string
+}
 
 export enum TimeFunction {
   Intraday = 'TIME_SERIES_INTRADAY',
@@ -26,112 +58,81 @@ export enum Interval {
 
 type OutputSize = 'compact' | 'full'
 
-interface Request {
-  apikey: string
-  symbol: string
-  function: TimeFunction
-  interval?: Interval // only if Intraday
-  outputsize: OutputSize
-}
-
-interface Metadata {
-  information: string
-  symbol: string
-  lastrefreshed: string
-  timezone: string
-}
-
-interface Datum {
-  timestamp: string
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-  adjustedclose?: number // only if Adjusted
-  dividendamount?: number // only if Adjusted
-  splitcoefficient?: number // only if Adjusted Daily
-}
-
-interface Response {
-  metadata: Metadata
-  timeseries: Datum[]
-}
-
 const ENDPOINT = 'https://www.alphavantage.co/query?'
 const API_KEY = 'EVUFAUSD0TZUIPVK'
-
-const defaultRequest = {
+const DEFAULT_REQUEST: Request = {
   apikey: API_KEY,
   symbol: 'SPX',
-  function: TimeFunction.Intraday,
-  interval: Interval.Min1,
-  outputsize: 'full',
+  function: TimeFunction.WeeklyAdjusted,
+  interval: Interval.Min30,
+  outputsize: 'compact',
 }
 
 export const getData = async (
   partialRequest: Partial<Request>,
 ): Promise<Response> => {
-  const request = { ...defaultRequest, ...partialRequest }
+  const request = { ...DEFAULT_REQUEST, ...partialRequest }
   const params = qs.stringify(request)
   const response = await fetch(ENDPOINT + params)
   const result = await response.json()
+  if (!result) throw new Error('Failed to fetch result')
   return normalize(result)
 }
 
 const normalize = (o: any): Response => {
-  const metadata = normalizeMetadata(o)
   const timeseries = normalizeTimeseries(o)
-  return { metadata, timeseries }
+  const metadata = normalizeMetadata(o)
+  return { timeseries, metadata }
 }
 
-const normalizeMetadata = (o: any): Metadata => {
-  const mdKey = 'Meta Data'
-  const md = o[mdKey]
-  return Object.keys(md).reduce(
-    (x, key): Metadata => {
-      if (key.includes('Information')) {
-        x.information = md[key]
-      } else if (key.includes('Symbol')) {
-        x.symbol = md[key]
-      } else if (key.includes('Last Refreshed')) {
-        x.lastrefreshed = md[key]
-      } else if (key.includes('Time Zone')) {
-        x.timezone = md[key]
+const normalizeTimeseries = (result: any): Datum[] => {
+  const seriesKey = Object.keys(result).find(key => key.includes('Time Series'))
+  if (!seriesKey) throw new Error('Failed to find Time Series')
+  const rawSeries = result[seriesKey]
+  return Object.keys(rawSeries).map(timestring => {
+    const rawDatum = rawSeries[timestring]
+    return Object.keys(rawDatum).reduce(
+      (datum, key) => {
+        if (key.endsWith('open')) {
+          datum.open = Number(rawDatum[key])
+        } else if (key.endsWith('high')) {
+          datum.high = Number(rawDatum[key])
+        } else if (key.endsWith('low')) {
+          datum.low = Number(rawDatum[key])
+        } else if (key.endsWith('close')) {
+          datum.close = Number(rawDatum[key])
+        } else if (key.endsWith('volume')) {
+          datum.volume = Number(rawDatum[key])
+        } else if (key.endsWith('adjusted close')) {
+          datum.adjustedclose = Number(rawDatum[key])
+        } else if (key.endsWith('dividend amount')) {
+          datum.dividendamount = Number(rawDatum[key])
+        } else if (key.endsWith('split coefficient')) {
+          datum.splitcoefficient = Number(rawDatum[key])
+        }
+        return datum
+      },
+      { time: Math.floor(Date.parse(timestring) / 10000) } as Datum,
+    )
+  })
+}
+
+const normalizeMetadata = (result: any): Metadata => {
+  const rawMeta = result['Meta Data']
+  if (!rawMeta) throw new Error('Failed to find Meta Data')
+  return Object.keys(rawMeta).reduce(
+    (meta, key): Metadata => {
+      if (key.endsWith('Information')) {
+        meta.information = rawMeta[key]
+      } else if (key.endsWith('Symbol')) {
+        meta.symbol = rawMeta[key]
+      } else if (key.endsWith('Last Refreshed')) {
+        meta.lastrefreshed = rawMeta[key]
+      } else if (key.endsWith('Time Zone')) {
+        meta.timezone = rawMeta[key]
       }
-      return x
+      return meta
     },
     {} as Metadata,
   )
-}
-
-const normalizeTimeseries = (o: any): Datum[] => {
-  const tsKey = Object.keys(o).filter(key => key.includes('Time Series'))[0]
-  const ts = o[tsKey]
-  return Object.keys(ts).map(timestamp => {
-    const d = ts[timestamp]
-    return Object.keys(d).reduce(
-      (x, key) => {
-        if (key.includes('open')) {
-          x.open = Number(d[key])
-        } else if (key.includes('high')) {
-          x.high = Number(d[key])
-        } else if (key.includes('low')) {
-          x.low = Number(d[key])
-        } else if (key.includes('close')) {
-          x.close = Number(d[key])
-        } else if (key.includes('volume')) {
-          x.volume = Number(d[key])
-        } else if (key.includes('adjusted close')) {
-          x.adjustedclose = Number(d[key])
-        } else if (key.includes('dividend amount')) {
-          x.dividendamount = Number(d[key])
-        } else if (key.includes('split coefficient')) {
-          x.splitcoefficient = Number(d[key])
-        }
-        return x
-      },
-      { timestamp } as Datum,
-    )
-  })
 }
