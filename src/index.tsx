@@ -1,82 +1,59 @@
 import 'babel-polyfill'
+import ReactEcharts from 'echarts-for-react'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom'
-import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 
-import { getData } from 'src/data/api'
+import { getCharts, getSymbols, TimeRange } from 'src/data/api'
 
 const symbols = ['VTI', 'VXUS', 'VNQ', 'BND']
 
-const width = 600
-const height = 100
-const top = 5
-const left = 5
-const right = 5
-const bottom = 5
-
-interface ChartDatum {
-  time: number
-  [key: string]: number
+const option: echarts.EChartOption = {
+  xAxis: {
+    type: 'time',
+  },
+  yAxis: {
+    type: 'value',
+    scale: true,
+  },
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: {
+      type: 'cross',
+      label: {
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderColor: 'none',
+        shadowColor: 'none',
+      },
+    },
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  series: [
+    {
+      type: 'line',
+      encode: {
+        x: 'date',
+        y: 'close',
+      },
+    },
+  ],
 }
 
-Promise.all(symbols.map(symbol => getData({ symbol }))).then(results => {
-  const data = results.reduce(
-    (memo, result) =>
-      memo.concat(
-        result.timeseries.map(datum => ({
-          time: datum.time,
-          [result.metadata.symbol]:
-            datum.adjustedclose !== undefined
-              ? datum.adjustedclose
-              : datum.close,
-        })),
-      ),
-    [] as ChartDatum[],
-  )
-  console.log(data)
+// getSymbols().then((results: any) => {
+//   console.log(results)
+// })
 
-  /**
-   * Urf this is no bueno
-   * time to find a charting lib
-   * with first-class timeseries support
-   */
-
+getCharts(symbols, TimeRange.M6).then(results => {
+  console.log(results)
   ReactDOM.render(
     <div>
-      {symbols
-        .map(symbol => (
-          <LineChart
-            key={symbol}
-            data={data}
-            syncId="id"
-            width={width}
-            height={height}
-            margin={{ top, left, right, bottom }}
-          >
-            <XAxis type="number" dataKey="time" hide={true} />
-            <YAxis type="number" dataKey={symbol} />
-            <CartesianGrid strokeDasharray="3 3" />
-            <Tooltip />
-            <Line
-              dataKey={symbol}
-              type="monotone"
-              stroke="#82ca9d"
-              fill="#82ca9d"
-            />
-          </LineChart>
-        ))
-        .concat(
-          <LineChart
-            key="x-axis"
-            syncId="id"
-            width={width}
-            height={40}
-            margin={{ top, left, right, bottom }}
-          >
-            <XAxis type="number" dataKey="time" />
-            <YAxis type="number" />
-          </LineChart>,
-        )}
+      {results.map((chartData, i) => (
+        <ReactEcharts
+          key={symbols[i]}
+          option={{ ...option, dataset: { source: chartData } }}
+          style={{ height: '350px', width: '100%' }}
+          theme="dark"
+        />
+      ))}
     </div>,
     document.getElementById('root'),
   )
