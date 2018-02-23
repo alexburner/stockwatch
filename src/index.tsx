@@ -20,6 +20,25 @@ const getDotHtml = (color: string): string => `
 `
 
 const option: echarts.EChartOption = {
+  backgroundColor: 'none',
+  title: {
+    top: '0',
+    left: '50px',
+    textStyle: {
+      fontSize: 10,
+      fontWeight: 'normal',
+      color: 'rgba(255,255,255,0.6)',
+    },
+  },
+  grid: {
+    show: true,
+    top: '10px',
+    left: '50px',
+    right: '70px',
+    bottom: '10px',
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderWidth: 0,
+  },
   xAxis: {
     type: 'time',
     show: false,
@@ -56,6 +75,7 @@ const option: echarts.EChartOption = {
           const dot = getDotHtml(p.color)
           return `${dot} ${label}: ${value}`
         })
+        .reverse()
         .join('<br/>')
     },
     axisPointer: {
@@ -78,23 +98,25 @@ const option: echarts.EChartOption = {
   },
   series: [
     {
-      id: 'high', // XXX codename tribeca
-      name: 'High',
-      type: 'line',
-      showSymbol: false,
-      encode: {
-        x: 'date',
-        y: 'high',
-      },
-    },
-    {
       id: 'low', // XXX codename tribeca
       name: 'Low',
       type: 'line',
       showSymbol: false,
+      color: 'rgba(241, 91, 91, 0.6)',
       encode: {
         x: 'date',
         y: 'low',
+      },
+    },
+    {
+      id: 'high', // XXX codename tribeca
+      name: 'High',
+      type: 'line',
+      showSymbol: false,
+      color: 'rgba(119, 242, 92, 0.6)',
+      encode: {
+        x: 'date',
+        y: 'high',
       },
     },
   ],
@@ -111,8 +133,17 @@ getCharts(symbols, TimeRange.M6).then(results => {
       {results.map((chartData, i) => (
         <ReactEcharts
           key={symbols[i]}
-          option={{ ...option, dataset: { source: chartData } }}
-          style={{ height: '350px', width: '100%' }}
+          option={{
+            ...option,
+            title: {
+              ...option.title,
+              text: symbols[i],
+            },
+            dataset: {
+              source: chartData,
+            },
+          }}
+          style={{ height: '150px', width: '100%' }}
           theme="dark"
         />
       ))}
